@@ -46,7 +46,6 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:logging-interceptor:5.0.0-alpha.14")
 
-    implementation("org.maplibre.gl:android-sdk:12.1.3")
     implementation ("com.mapbox.maps:android-ndk27:11.16.6")
 
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

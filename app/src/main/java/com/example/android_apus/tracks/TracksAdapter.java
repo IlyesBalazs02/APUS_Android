@@ -15,14 +15,16 @@ import java.util.List;
 
 public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.TrackViewHolder> {
 
-    private final List<String> tracks = new ArrayList<>();
+    public interface OnTrackClickListener {
+        void onTrackClick(String fileName);
+    }
 
-    public void setTracks(List<String> newTracks) {
-        tracks.clear();
-        if (newTracks != null) {
-            tracks.addAll(newTracks);
-        }
-        notifyDataSetChanged();
+    private List<String> items;
+    private OnTrackClickListener listener;
+
+    public TracksAdapter(List<String> items, OnTrackClickListener listener) {
+        this.items = items;
+        this.listener = listener;
     }
 
     @NonNull
@@ -35,21 +37,28 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.TrackViewH
 
     @Override
     public void onBindViewHolder(@NonNull TrackViewHolder holder, int position) {
-        String name = tracks.get(position);
+        String name = items.get(position);
         holder.textTrackName.setText(name);
+        holder.itemView.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onTrackClick(name);
+            }
+        });
     }
 
     @Override
     public int getItemCount() {
-        return tracks.size();
+        return items != null ? items.size() : 0;
     }
 
     static class TrackViewHolder extends RecyclerView.ViewHolder {
         TextView textTrackName;
 
-        TrackViewHolder(@NonNull View itemView) {
+        public TrackViewHolder(@NonNull View itemView) {
             super(itemView);
             textTrackName = itemView.findViewById(R.id.textTrackName);
         }
     }
 }
+
+

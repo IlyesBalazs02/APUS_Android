@@ -48,7 +48,6 @@ public class ApiClient {
             builder.hostnameVerifier(new HostnameVerifier() {
                 @Override
                 public boolean verify(String hostname, SSLSession session) {
-                    // Accept any hostname for dev, including 10.0.2.2
                     return true;
                 }
             });
@@ -62,6 +61,7 @@ public class ApiClient {
 
     public static Retrofit getClient() {
         if (retrofit == null) {
+
             OkHttpClient client = getUnsafeOkHttpClient();
 
             retrofit = new Retrofit.Builder()

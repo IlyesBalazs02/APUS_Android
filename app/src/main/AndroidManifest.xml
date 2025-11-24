@@ -32,6 +32,9 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".tracks.TracksActivity" />
+
+
         <meta-data
             android:name="MAPBOX_ACCESS_TOKEN"
             android:value="pk.eyJ1IjoiaWx5YmFsYXpzIiwiYSI6ImNtYWg2OTc2aTA4aWEyaXNnZm51MWowOHcifQ.WOGFXvuj-godrQ4xMuKlkg" />

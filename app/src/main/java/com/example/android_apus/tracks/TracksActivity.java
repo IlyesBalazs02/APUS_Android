@@ -16,11 +16,11 @@ import com.example.android_apus.R;
 
 import java.util.List;
 
+import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-// TracksActivity.java
 public class TracksActivity extends AppCompatActivity {
 
     private RecyclerView recyclerTracks;
@@ -49,12 +49,26 @@ public class TracksActivity extends AppCompatActivity {
             public void onResponse(Call<List<String>> call, Response<List<String>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     List<String> names = response.body();
-                    TracksAdapter adapter = new TracksAdapter(names, fileName -> {
-                        Intent result = new Intent();
-                        result.putExtra("selectedTrack", fileName);
-                        setResult(RESULT_OK, result);
-                        finish();
-                    });
+
+                    TracksAdapter adapter = new TracksAdapter(
+                            names,
+                            new TracksAdapter.OnTrackClickListener() {
+                                @Override
+                                public void onTrackClick(String fileName) {
+                                    // old behaviour: pick track and return to MainActivity
+                                    Intent result = new Intent();
+                                    result.putExtra("selectedTrack", fileName);
+                                    setResult(RESULT_OK, result);
+                                    finish();
+                                }
+
+                                @Override
+                                public void onDownloadClick(String fileName) {
+                                    // NEW: only trigger backend mapsforge, no real download yet
+                                    requestMapsforgeExport(fileName);
+                                }
+                            });
+
                     recyclerTracks.setAdapter(adapter);
                 } else {
                     Toast.makeText(TracksActivity.this,
@@ -69,5 +83,37 @@ public class TracksActivity extends AppCompatActivity {
             }
         });
     }
-}
 
+    // Stub: call backend to generate .map, but don't save file yet
+    private void requestMapsforgeExport(String fileName) {
+        String token = "Bearer " + sessionManager.getToken();
+        MapsforgeTrackFileRequest request = new MapsforgeTrackFileRequest(fileName);
+
+        Toast.makeText(this, "Requesting map export…", Toast.LENGTH_SHORT).show();
+
+        apiService.exportMapsforge(token, request)
+                .enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<ResponseBody> call,
+                                           Response<ResponseBody> response) {
+                        if (response.isSuccessful()) {
+                            // We do NOT read/save the body yet – just confirm
+                            Toast.makeText(TracksActivity.this,
+                                    "Map export OK (download not implemented yet)",
+                                    Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(TracksActivity.this,
+                                    "Map export failed: " + response.code(),
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        Toast.makeText(TracksActivity.this,
+                                "Map export error: " + t.getMessage(),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+}

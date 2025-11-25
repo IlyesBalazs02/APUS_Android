@@ -3,6 +3,7 @@ package com.example.android_apus.tracks;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -17,6 +18,7 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.TrackViewH
 
     public interface OnTrackClickListener {
         void onTrackClick(String fileName);
+        void onDownloadClick(String fileName);
     }
 
     private List<String> items;
@@ -39,9 +41,18 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.TrackViewH
     public void onBindViewHolder(@NonNull TrackViewHolder holder, int position) {
         String name = items.get(position);
         holder.textTrackName.setText(name);
+
+        // Selecting a track (old behaviour)
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onTrackClick(name);
+            }
+        });
+
+        // NEW: clicking Download map
+        holder.buttonDownloadMap.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onDownloadClick(name);
             }
         });
     }
@@ -53,10 +64,12 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.TrackViewH
 
     static class TrackViewHolder extends RecyclerView.ViewHolder {
         TextView textTrackName;
+        Button buttonDownloadMap;
 
         public TrackViewHolder(@NonNull View itemView) {
             super(itemView);
             textTrackName = itemView.findViewById(R.id.textTrackName);
+            buttonDownloadMap = itemView.findViewById(R.id.buttonDownloadMap);
         }
     }
 }

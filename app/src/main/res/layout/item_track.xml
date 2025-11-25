@@ -8,12 +8,25 @@
     card_view:cardCornerRadius="8dp"
     card_view:cardElevation="4dp">
 
-    <TextView
-        android:id="@+id/textTrackName"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="16dp"
-        android:textSize="16sp"
-        android:textColor="@android:color/black" />
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/textTrackName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="16sp"
+            android:textColor="@android:color/black" />
+
+        <Button
+            android:id="@+id/buttonDownloadMap"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Download map" />
+    </LinearLayout>
 
 </androidx.cardview.widget.CardView>

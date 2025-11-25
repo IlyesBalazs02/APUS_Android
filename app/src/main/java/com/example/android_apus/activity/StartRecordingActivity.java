@@ -35,6 +35,12 @@ public class StartRecordingActivity extends AppCompatActivity {
         buttonSelectRoute = findViewById(R.id.buttonSelectRoute);
         textSelectedRoute = findViewById(R.id.textSelectedRoute);
         buttonStartRecording = findViewById(R.id.buttonStartRecording);
+        Button buttonOpenTracks = findViewById(R.id.buttonOpenTracks);
+
+        buttonOpenTracks.setOnClickListener(v -> {
+            Intent i = new Intent(this, TracksActivity.class);
+            startActivity(i); // no result, just open the list
+        });
 
         setupActivitySpinner();
         setupButtons();

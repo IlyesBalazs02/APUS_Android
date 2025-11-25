@@ -2,6 +2,7 @@ package com.example.android_apus.tracks;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
@@ -34,6 +35,10 @@ public class TracksActivity extends AppCompatActivity {
 
         recyclerTracks = findViewById(R.id.recyclerTracks);
         recyclerTracks.setLayoutManager(new LinearLayoutManager(this));
+
+        Button buttonBack = findViewById(R.id.buttonBack);
+        buttonBack.setOnClickListener(v -> finish());
+
 
         sessionManager = new SessionManager(this);
         apiService = ApiClient.getClient().create(ApiService.class);

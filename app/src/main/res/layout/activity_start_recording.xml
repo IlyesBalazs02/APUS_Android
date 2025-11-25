@@ -39,4 +39,13 @@
         android:layout_height="wrap_content"
         android:text="Start recording"
         android:layout_marginTop="32dp" />
+
+    <!-- NEW: go to tracks list directly -->
+    <Button
+        android:id="@+id/buttonOpenTracks"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Tracks"
+        android:layout_marginTop="16dp" />
+
 </LinearLayout>

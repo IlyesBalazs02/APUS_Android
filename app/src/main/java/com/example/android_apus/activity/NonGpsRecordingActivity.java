@@ -10,7 +10,14 @@ import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.android_apus.Auth.ApiClient;
+import com.example.android_apus.Auth.ApiService;
+import com.example.android_apus.Auth.SessionManager;
 import com.example.android_apus.R;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class NonGpsRecordingActivity extends AppCompatActivity {
 
@@ -23,6 +30,10 @@ public class NonGpsRecordingActivity extends AppCompatActivity {
     private long startTimeMillis;
     private long pausedTimeAccumulated = 0L;
     private long lastPauseStart = 0L;
+
+    // for upload:
+    private long startTimeUnixSeconds; // start time in seconds since epoch
+    private String activityTypeName;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable timerRunnable = new Runnable() {
@@ -37,7 +48,8 @@ public class NonGpsRecordingActivity extends AppCompatActivity {
         }
     };
 
-    private String activityTypeName;
+    private SessionManager sessionManager;
+    private ApiService apiService;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -49,12 +61,17 @@ public class NonGpsRecordingActivity extends AppCompatActivity {
         buttonPauseResume = findViewById(R.id.buttonPauseResume);
         buttonEnd = findViewById(R.id.buttonEnd);
 
+        sessionManager = new SessionManager(this);
+        apiService = ApiClient.getClient().create(ApiService.class);
+
         activityTypeName = getIntent().getStringExtra("activityType");
         if (activityTypeName == null) activityTypeName = "Activity";
-
         textActivityName.setText(activityTypeName);
 
+        // mark start time
         startTimeMillis = System.currentTimeMillis();
+        startTimeUnixSeconds = startTimeMillis / 1000L;
+
         handler.post(timerRunnable);
 
         buttonPauseResume.setOnClickListener(v -> onPauseResume());
@@ -63,12 +80,10 @@ public class NonGpsRecordingActivity extends AppCompatActivity {
 
     private void onPauseResume() {
         if (isRunning) {
-            // pause
             isRunning = false;
             buttonPauseResume.setText("Resume");
             lastPauseStart = System.currentTimeMillis();
         } else {
-            // resume
             isRunning = true;
             buttonPauseResume.setText("Pause");
             long now = System.currentTimeMillis();
@@ -78,15 +93,48 @@ public class NonGpsRecordingActivity extends AppCompatActivity {
 
     private void onEnd() {
         long now = System.currentTimeMillis();
-        long elapsed = (now - startTimeMillis) - pausedTimeAccumulated;
+        long elapsedMillis = (now - startTimeMillis) - pausedTimeAccumulated;
+        int durationSeconds = (int) (elapsedMillis / 1000L);
 
-        // TODO: create NonGpsActivityUpload and send to server later
-        Toast.makeText(this,
-                "Activity finished, duration: " + formatDuration(elapsed),
-                Toast.LENGTH_LONG).show();
+        if (durationSeconds <= 0) {
+            Toast.makeText(this, "Duration too short", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
 
-        // finish for now
-        finish();
+        // build request
+        NonGpsActivityUploadRequest req = new NonGpsActivityUploadRequest(
+                activityTypeName,       // e.g. "Yoga"
+                startTimeUnixSeconds,   // unix seconds
+                durationSeconds
+        );
+
+        String token = "Bearer " + sessionManager.getToken();
+
+        apiService.uploadNonGpsActivity(token, req)
+                .enqueue(new Callback<Void>() {
+                    @Override
+                    public void onResponse(Call<Void> call, Response<Void> response) {
+                        if (response.isSuccessful()) {
+                            Toast.makeText(NonGpsRecordingActivity.this,
+                                    "Activity uploaded",
+                                    Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(NonGpsRecordingActivity.this,
+                                    "Upload failed: " + response.code(),
+                                    Toast.LENGTH_LONG).show();
+                        }
+                        finish();
+                    }
+
+                    @Override
+                    public void onFailure(Call<Void> call, Throwable t) {
+                        Toast.makeText(NonGpsRecordingActivity.this,
+                                "Upload error: " + t.getMessage(),
+                                Toast.LENGTH_LONG).show();
+                        finish();
+                    }
+                });
     }
 
     private String formatDuration(long millis) {

@@ -1,5 +1,6 @@
 package com.example.android_apus.Auth;
 
+import com.example.android_apus.activity.NonGpsActivityUploadRequest;
 import com.example.android_apus.tracks.CoordinateDto;
 import com.example.android_apus.tracks.MapsforgeExportRequest;
 import com.example.android_apus.tracks.MapsforgeTrackFileRequest;
@@ -34,5 +35,11 @@ public interface ApiService {
     Call<ResponseBody> exportMapsforge(
             @Header("Authorization") String bearerToken,
             @Body MapsforgeTrackFileRequest request
+    );
+
+    @POST("api/android/activities/nongps")
+    Call<Void> uploadNonGpsActivity(
+            @Header("Authorization") String bearerToken,
+            @Body NonGpsActivityUploadRequest request
     );
 }

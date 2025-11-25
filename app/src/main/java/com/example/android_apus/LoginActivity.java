@@ -13,6 +13,7 @@ import com.example.android_apus.Auth.ApiService;
 import com.example.android_apus.Auth.LoginRequest;
 import com.example.android_apus.Auth.LoginResponse;
 import com.example.android_apus.Auth.SessionManager;
+import com.example.android_apus.activity.StartRecordingActivity;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -61,7 +62,7 @@ public class LoginActivity extends AppCompatActivity {
                     sessionManager.saveToken(token);
 
                     // Go to main screen
-                    Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                    Intent intent = new Intent(LoginActivity.this, StartRecordingActivity.class);
                     startActivity(intent);
                     finish();
                 } else {

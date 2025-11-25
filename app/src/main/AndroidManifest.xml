@@ -34,6 +34,13 @@
 
         <activity android:name=".tracks.TracksActivity" />
 
+        <activity
+            android:name=".activity.StartRecordingActivity"
+            android:exported="false" />
+
+        <activity android:name=".activity.NonGpsRecordingActivity" android:exported="false"/>
+
+
 
         <meta-data
             android:name="MAPBOX_ACCESS_TOKEN"

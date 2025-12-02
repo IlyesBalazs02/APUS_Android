@@ -31,11 +31,17 @@ public interface ApiService {
             @Path("fileName") String fileName
     );
 
+    @Streaming
     @POST("api/mapsforge/from-track-file")
     Call<ResponseBody> exportMapsforge(
             @Header("Authorization") String bearerToken,
             @Body MapsforgeTrackFileRequest request
     );
+
+    @Streaming
+    @POST("api/mapsforge/gpx-from-track-file")
+    Call<ResponseBody> downloadRouteGpx(@Header("Authorization") String bearer,
+                                        @Body MapsforgeTrackFileRequest req);
 
     @POST("api/android/activities/nongps")
     Call<Void> uploadNonGpsActivity(

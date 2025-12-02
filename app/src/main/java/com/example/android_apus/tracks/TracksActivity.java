@@ -15,6 +15,7 @@ import com.example.android_apus.Auth.ApiService;
 import com.example.android_apus.Auth.SessionManager;
 import com.example.android_apus.R;
 
+import java.io.File;
 import java.util.List;
 
 import okhttp3.ResponseBody;
@@ -71,6 +72,7 @@ public class TracksActivity extends AppCompatActivity {
                                 public void onDownloadClick(String fileName) {
                                     // NEW: only trigger backend mapsforge, no real download yet
                                     requestMapsforgeExport(fileName);
+                                    requestRouteGpx(fileName);
                                 }
                             });
 
@@ -89,6 +91,53 @@ public class TracksActivity extends AppCompatActivity {
         });
     }
 
+    private File getOfflineRoutesDir() {
+        File dir = new File(getExternalFilesDir(null), "offline_routes");
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    private void requestRouteGpx(String fileName) {
+        String token = "Bearer " + sessionManager.getToken();
+        MapsforgeTrackFileRequest request = new MapsforgeTrackFileRequest(fileName);
+
+        apiService.downloadRouteGpx(token, request)
+                .enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                        if (!response.isSuccessful() || response.body() == null) {
+                            Toast.makeText(TracksActivity.this,
+                                    "GPX download failed: " + response.code(),
+                                    Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        try {
+                            File outFile = new File(getOfflineRoutesDir(), sanitize(fileName) + ".gpx");
+                            saveResponseBodyToFile(response.body(), outFile);
+
+                            String msg = "Saved GPX: " + outFile.getAbsolutePath();
+                            android.util.Log.i("OfflineRoutes", msg);
+                            Toast.makeText(TracksActivity.this, msg, Toast.LENGTH_LONG).show();
+                        } catch (Exception e) {
+                            android.util.Log.e("OfflineRoutes", "GPX save failed", e);
+                            Toast.makeText(TracksActivity.this,
+                                    "GPX save failed: " + e.getMessage(),
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        Toast.makeText(TracksActivity.this,
+                                "GPX error: " + t.getMessage(),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+
+
     // Stub: call backend to generate .map, but don't save file yet
     private void requestMapsforgeExport(String fileName) {
         String token = "Bearer " + sessionManager.getToken();
@@ -99,16 +148,29 @@ public class TracksActivity extends AppCompatActivity {
         apiService.exportMapsforge(token, request)
                 .enqueue(new Callback<ResponseBody>() {
                     @Override
-                    public void onResponse(Call<ResponseBody> call,
-                                           Response<ResponseBody> response) {
-                        if (response.isSuccessful()) {
-                            // We do NOT read/save the body yet – just confirm
-                            Toast.makeText(TracksActivity.this,
-                                    "Map export OK (download not implemented yet)",
-                                    Toast.LENGTH_SHORT).show();
-                        } else {
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                        if (!response.isSuccessful() || response.body() == null) {
                             Toast.makeText(TracksActivity.this,
                                     "Map export failed: " + response.code(),
+                                    Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        try {
+                            File outFile = new File(getOfflineRoutesDir(), sanitize(fileName) + ".map");
+                            saveResponseBodyToFile(response.body(), outFile);
+
+                            String msg = "Saved: " + outFile.getAbsolutePath();
+                            android.util.Log.i("OfflineRoutes", msg);
+                            Toast.makeText(TracksActivity.this, msg, Toast.LENGTH_LONG).show();
+
+                            // Optional: download GPX as well (see section 3)
+                            // requestRouteGpx(fileName);
+
+                        } catch (Exception e) {
+                            android.util.Log.e("OfflineRoutes", "Save failed", e);
+                            Toast.makeText(TracksActivity.this,
+                                    "Save failed: " + e.getMessage(),
                                     Toast.LENGTH_SHORT).show();
                         }
                     }
@@ -121,4 +183,22 @@ public class TracksActivity extends AppCompatActivity {
                     }
                 });
     }
+
+    private void saveResponseBodyToFile(ResponseBody body, File outFile) throws Exception {
+        try (java.io.InputStream is = body.byteStream();
+             java.io.OutputStream os = new java.io.FileOutputStream(outFile)) {
+
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = is.read(buffer)) != -1) {
+                os.write(buffer, 0, read);
+            }
+            os.flush();
+        }
+    }
+
+    private String sanitize(String s) {
+        return s.replaceAll("[^a-zA-Z0-9áéíóöőúüűÁÉÍÓÖŐÚÜŰ _-]", "_").trim();
+    }
+
 }

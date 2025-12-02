@@ -41,6 +41,13 @@ public class LoginActivity extends AppCompatActivity {
         loginButton = findViewById(R.id.loginButton);
 
         loginButton.setOnClickListener(v -> doLogin());
+
+        Button offlineBtn = findViewById(R.id.buttonBrowseRoutes);
+        offlineBtn.setOnClickListener(v -> {
+            Intent i = new Intent(LoginActivity.this, com.example.android_apus.offline.OfflineRoutesActivity.class);
+            startActivity(i);
+        });
+
     }
 
     private void doLogin() {

@@ -32,20 +32,28 @@ public final class OfflineRouteStore {
 
     public static List<OfflineRoute> listRoutes(Context ctx) {
         File root = rootDir(ctx);
-        File[] dirs = root.listFiles(File::isDirectory);
-        List<OfflineRoute> out = new ArrayList<>();
-        if (dirs == null) return out;
 
-        for (File d : dirs) {
-            String name = d.getName();
-            File map = new File(d, name + ".map");
-            File gpx = new File(d, name + ".gpx");
-            if (map.exists()) {
-                out.add(new OfflineRoute(name, map, gpx.exists() ? gpx : null));
+        File[] mapFiles = root.listFiles((dir, name) ->
+                name != null && name.toLowerCase().endsWith(".map"));
+
+        List<OfflineRoute> out = new ArrayList<>();
+        if (mapFiles == null) return out;
+
+        for (File map : mapFiles) {
+            String baseName = map.getName();
+            if (baseName.toLowerCase().endsWith(".map")) {
+                baseName = baseName.substring(0, baseName.length() - 4);
             }
+
+            File gpx = new File(root, baseName + ".gpx"); // optional
+            out.add(new OfflineRoute(baseName, map, gpx.exists() ? gpx : null));
         }
+
+        // Optional: sort alphabetically
+        java.util.Collections.sort(out, (a, b) -> a.name.compareToIgnoreCase(b.name));
         return out;
     }
+
 
     private static String sanitize(String s) {
         // Keep it file-system safe

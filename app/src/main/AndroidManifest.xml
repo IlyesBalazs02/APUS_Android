@@ -42,6 +42,7 @@
 
         <activity android:name=".offline.OfflineRoutesActivity" />
 
+        <activity android:name=".offline.OfflineRoutePreviewActivity" />
 
 
         <meta-data

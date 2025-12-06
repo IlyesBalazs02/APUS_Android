@@ -39,6 +39,7 @@
             android:exported="false" />
 
         <activity android:name=".activity.NonGpsRecordingActivity" android:exported="false"/>
+        <activity android:name=".activity.GpsRecordingActivity" android:exported="false" />
 
         <activity android:name=".offline.OfflineRoutesActivity" />
 

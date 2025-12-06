@@ -5,6 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- Top row: activity name + timer -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -27,13 +28,14 @@
             android:textSize="18sp" />
     </LinearLayout>
 
-    <!-- map container (MapLibre/Mapbox/Mapsforge later) -->
-    <FrameLayout
-        android:id="@+id/mapContainer"
+    <!-- Map fills remaining vertical space -->
+    <com.mapbox.maps.MapView
+        android:id="@+id/mapView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1" />
 
+    <!-- Bottom row: buttons -->
     <LinearLayout
         android:orientation="horizontal"
         android:gravity="center"

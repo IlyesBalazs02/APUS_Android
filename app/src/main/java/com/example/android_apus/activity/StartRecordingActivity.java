@@ -103,13 +103,15 @@ public class StartRecordingActivity extends AppCompatActivity {
     }
 
     private void startGpsRecording() {
-        Intent i = new Intent(this, GpsActivityUpload.class);
+        Intent i = new Intent(this, GpsRecordingActivity.class);
         i.putExtra("activityType", selectedKind.getServerTypeName());
         if (selectedRouteFileName != null) {
             i.putExtra("routeFileName", selectedRouteFileName);
         }
         startActivity(i);
     }
+
+
 
     private void startNonGpsRecording() {
         Intent i = new Intent(this, NonGpsRecordingActivity.class); // RIGHT

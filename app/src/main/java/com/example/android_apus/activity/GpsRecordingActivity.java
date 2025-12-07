@@ -31,6 +31,17 @@ import com.mapbox.maps.extension.style.sources.generated.GeoJsonSource;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -68,6 +79,22 @@ public class GpsRecordingActivity extends AppCompatActivity {
     private long startTimeMillis;
     private long pausedTimeAccumulated = 0L;
     private long lastPauseStart = 0L;
+
+
+    private final List<RecordedPoint> recordedPoints = new ArrayList<>();
+
+    private static class RecordedPoint {
+        final double lat;
+        final double lon;
+        final long timeMillis;
+
+        RecordedPoint(double lat, double lon, long timeMillis) {
+            this.lat = lat;
+            this.lon = lon;
+            this.timeMillis = timeMillis;
+        }
+    }
+
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable timerRunnable = new Runnable() {
@@ -112,10 +139,23 @@ public class GpsRecordingActivity extends AppCompatActivity {
         });
 
         // Shared GPS tracker
+        // Shared GPS tracker – also record points while running
         gpsTracker = new GpsLocationTracker(
                 this,
-                (lat, lon) -> updateUserLocationOnMap(lat, lon)
+                (lat, lon) -> {
+                    updateUserLocationOnMap(lat, lon);
+
+                    // Only record while the timer is running
+                    if (isRunning) {
+                        recordedPoints.add(new RecordedPoint(
+                                lat,
+                                lon,
+                                System.currentTimeMillis()
+                        ));
+                    }
+                }
         );
+
 
         activityTypeName = getIntent().getStringExtra("activityType");
         if (activityTypeName == null) activityTypeName = "Activity";
@@ -311,12 +351,137 @@ public class GpsRecordingActivity extends AppCompatActivity {
         long now = System.currentTimeMillis();
         long elapsed = (now - startTimeMillis) - pausedTimeAccumulated;
 
-        Toast.makeText(this,
-                "GPS activity finished, duration: " + formatDuration(elapsed),
-                Toast.LENGTH_LONG).show();
+        isRunning = false;
 
-        finish();
+        if (gpsTracker != null) {
+            gpsTracker.stop();
+        }
+
+        // No or very few points -> nothing to upload
+        if (recordedPoints.size() < 2) {
+            Toast.makeText(this,
+                    "Not enough GPS points recorded – nothing to upload.",
+                    Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+
+        try {
+            File gpxFile = writeGpxFile();
+            uploadGpxFile(gpxFile);
+        } catch (IOException e) {
+            Toast.makeText(this,
+                    "Could not create GPX file: " + e.getMessage(),
+                    Toast.LENGTH_LONG).show();
+            finish();
+        }
     }
+
+    private File writeGpxFile() throws IOException {
+        File dir = new File(getCacheDir(), "recorded_gpx");
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IOException("Cannot create GPX cache directory");
+        }
+
+        String fileName = "activity_" + System.currentTimeMillis() + ".gpx";
+        File gpxFile = new File(dir, fileName);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        sb.append("<gpx version=\"1.1\" creator=\"APUS Android\" ")
+                .append("xmlns=\"http://www.topografix.com/GPX/1/1\">\n");
+        sb.append("  <trk>\n");
+        sb.append("    <name>")
+                .append(activityTypeName)
+                .append("</name>\n");
+        sb.append("    <trkseg>\n");
+
+        for (RecordedPoint p : recordedPoints) {
+            sb.append("      <trkpt lat=\"")
+                    .append(p.lat)
+                    .append("\" lon=\"")
+                    .append(p.lon)
+                    .append("\">\n");
+
+            String isoTime = Instant.ofEpochMilli(p.timeMillis).toString();
+            sb.append("        <time>")
+                    .append(isoTime)
+                    .append("</time>\n");
+
+            sb.append("      </trkpt>\n");
+        }
+
+        sb.append("    </trkseg>\n");
+        sb.append("  </trk>\n");
+        sb.append("</gpx>\n");
+
+        try (FileOutputStream fos = new FileOutputStream(gpxFile)) {
+            fos.write(sb.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        return gpxFile;
+    }
+
+    private void uploadGpxFile(File gpxFile) {
+        String token = sessionManager.getToken();
+        if (token == null || token.isEmpty()) {
+            Toast.makeText(this,
+                    "You are not logged in – cannot upload activity.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        ApiService.AndroidActivityApi androidActivityApi =
+                ApiClient.getClient().create(ApiService.AndroidActivityApi.class);
+
+        RequestBody fileBody = RequestBody.create(
+                MediaType.parse("application/gpx+xml"),
+                gpxFile
+        );
+
+        MultipartBody.Part filePart = MultipartBody.Part.createFormData(
+                "trackFile",           // MUST match [FromForm] IFormFile trackFile
+                gpxFile.getName(),
+                fileBody
+        );
+
+        RequestBody activityTypePart = RequestBody.create(
+                MediaType.parse("text/plain"),
+                activityTypeName != null ? activityTypeName : ""
+        );
+
+        androidActivityApi.uploadGpsActivity(
+                        "Bearer " + token,
+                        filePart,
+                        activityTypePart
+                )
+                .enqueue(new retrofit2.Callback<Void>() {
+                    @Override
+                    public void onResponse(retrofit2.Call<Void> call,
+                                           retrofit2.Response<Void> response) {
+                        if (response.isSuccessful()) {
+                            Toast.makeText(GpsRecordingActivity.this,
+                                    "GPS activity uploaded",
+                                    Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(GpsRecordingActivity.this,
+                                    "Upload failed: " + response.code(),
+                                    Toast.LENGTH_LONG).show();
+                        }
+                        finish();
+                    }
+
+                    @Override
+                    public void onFailure(retrofit2.Call<Void> call, Throwable t) {
+                        Toast.makeText(GpsRecordingActivity.this,
+                                "Upload error: " + t.getMessage(),
+                                Toast.LENGTH_LONG).show();
+                        finish();
+                    }
+                });
+    }
+
+
 
     private String formatDuration(long millis) {
         long seconds = millis / 1000;

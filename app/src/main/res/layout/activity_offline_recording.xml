@@ -1,11 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:padding="8dp">
 
+    <!-- Activity title (e.g. "Running") -->
+    <TextView
+        android:id="@+id/textOfflineActivityName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Activity"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:paddingBottom="4dp" />
+
+    <!-- Timer -->
+    <TextView
+        android:id="@+id/textOfflineTimer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="00:00:00"
+        android:textSize="16sp"
+        android:paddingBottom="4dp" />
+
+    <!-- Offline map in the middle, fills remaining space -->
     <org.mapsforge.map.android.view.MapView
         android:id="@+id/mapView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
-</FrameLayout>
+    <!-- Controls: Pause/Resume, End, Center at the bottom -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="4dp">
+
+        <Button
+            android:id="@+id/buttonOfflinePauseResume"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Pause" />
+
+        <Button
+            android:id="@+id/buttonOfflineEnd"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="End" />
+
+        <Button
+            android:id="@+id/buttonOfflineCenter"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Center" />
+    </LinearLayout>
+
+</LinearLayout>

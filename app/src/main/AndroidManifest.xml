@@ -45,6 +45,9 @@
 
         <activity android:name=".offline.OfflineRoutePreviewActivity" />
 
+        <activity android:name=".offline.OfflineRecording" android:exported="false" />
+
+
 
         <meta-data
             android:name="MAPBOX_ACCESS_TOKEN"

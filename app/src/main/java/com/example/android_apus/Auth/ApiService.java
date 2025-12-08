@@ -61,7 +61,6 @@ public interface ApiService {
     );
 
     public interface AndroidActivityApi {
-
         @Multipart
         @POST("api/android/activities/gps")
         Call<Void> uploadGpsActivity(
@@ -70,6 +69,8 @@ public interface ApiService {
                 @Part("activityType") RequestBody activityType
         );
     }
+
+
 
 
 

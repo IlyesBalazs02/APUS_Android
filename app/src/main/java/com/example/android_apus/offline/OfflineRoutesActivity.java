@@ -149,11 +149,12 @@ public class OfflineRoutesActivity extends AppCompatActivity {
             return;
         }
 
-        Intent i = new Intent(this, OfflineRoutePreviewActivity.class);
-        i.putExtra("activityType", selectedKind.getServerTypeName());
-        i.putExtra("offlineRouteName", selectedRoute.name); // folder/name used by OfflineRouteStore
+        Intent i = new Intent(this, OfflineRecording.class);
+        i.putExtra(OfflineRecording.EXTRA_ACTIVITY_TYPE, selectedKind.getServerTypeName());
+        i.putExtra(OfflineRecording.EXTRA_ROUTE_NAME, selectedRoute.name);
         startActivity(i);
     }
+
 
     private void loadOfflineMap(File mapFile) {
         clearMap();

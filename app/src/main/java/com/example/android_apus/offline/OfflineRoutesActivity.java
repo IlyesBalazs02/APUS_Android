@@ -101,8 +101,6 @@ public class OfflineRoutesActivity extends AppCompatActivity {
     }
 
     private void updateUiForActivityType() {
-        // Keep it identical to StartRecordingActivity’s approach:
-        // route only for GPS-related activities
         boolean showRouteUi = selectedKind.isGpsRelated();
 
         findViewById(R.id.routesRecycler).setVisibility(showRouteUi ? View.VISIBLE : View.GONE);

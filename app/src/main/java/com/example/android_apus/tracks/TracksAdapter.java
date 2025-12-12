@@ -42,14 +42,12 @@ public class TracksAdapter extends RecyclerView.Adapter<TracksAdapter.TrackViewH
         String name = items.get(position);
         holder.textTrackName.setText(name);
 
-        // Selecting a track (old behaviour)
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onTrackClick(name);
             }
         });
 
-        // NEW: clicking Download map
         holder.buttonDownloadMap.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onDownloadClick(name);

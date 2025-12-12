@@ -24,7 +24,7 @@ public class StartRecordingActivity extends AppCompatActivity {
     private Button buttonStartRecording;
 
     private ActivityType selectedKind = ActivityType.RUNNING;
-    private String selectedRouteFileName = null; // optional
+    private String selectedRouteFileName = null;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -39,7 +39,7 @@ public class StartRecordingActivity extends AppCompatActivity {
 
         buttonOpenTracks.setOnClickListener(v -> {
             Intent i = new Intent(this, TracksActivity.class);
-            startActivity(i); // no result, just open the list
+            startActivity(i);
         });
 
         setupActivitySpinner();
@@ -70,7 +70,6 @@ public class StartRecordingActivity extends AppCompatActivity {
 
                     @Override
                     public void onNothingSelected(android.widget.AdapterView<?> parent) {
-                        // no-op
                     }
                 });
     }
@@ -89,7 +88,6 @@ public class StartRecordingActivity extends AppCompatActivity {
     private void setupButtons() {
         buttonSelectRoute.setOnClickListener(v -> {
             Intent i = new Intent(this, TracksActivity.class);
-            // You already return "selectedTrack" from TracksActivity
             startActivityForResult(i, REQ_SELECT_ROUTE);
         });
 
@@ -114,7 +112,7 @@ public class StartRecordingActivity extends AppCompatActivity {
 
 
     private void startNonGpsRecording() {
-        Intent i = new Intent(this, NonGpsRecordingActivity.class); // RIGHT
+        Intent i = new Intent(this, NonGpsRecordingActivity.class);
         i.putExtra("activityType", selectedKind.getServerTypeName());
         startActivity(i);
     }

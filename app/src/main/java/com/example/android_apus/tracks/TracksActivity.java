@@ -61,7 +61,6 @@ public class TracksActivity extends AppCompatActivity {
                             new TracksAdapter.OnTrackClickListener() {
                                 @Override
                                 public void onTrackClick(String fileName) {
-                                    // old behaviour: pick track and return to MainActivity
                                     Intent result = new Intent();
                                     result.putExtra("selectedTrack", fileName);
                                     setResult(RESULT_OK, result);
@@ -70,7 +69,6 @@ public class TracksActivity extends AppCompatActivity {
 
                                 @Override
                                 public void onDownloadClick(String fileName) {
-                                    // NEW: only trigger backend mapsforge, no real download yet
                                     requestMapsforgeExport(fileName);
                                     requestRouteGpx(fileName);
                                 }
@@ -138,7 +136,6 @@ public class TracksActivity extends AppCompatActivity {
 
 
 
-    // Stub: call backend to generate .map, but don't save file yet
     private void requestMapsforgeExport(String fileName) {
         String token = "Bearer " + sessionManager.getToken();
         MapsforgeTrackFileRequest request = new MapsforgeTrackFileRequest(fileName);
@@ -163,9 +160,6 @@ public class TracksActivity extends AppCompatActivity {
                             String msg = "Saved: " + outFile.getAbsolutePath();
                             android.util.Log.i("OfflineRoutes", msg);
                             Toast.makeText(TracksActivity.this, msg, Toast.LENGTH_LONG).show();
-
-                            // Optional: download GPX as well (see section 3)
-                            // requestRouteGpx(fileName);
 
                         } catch (Exception e) {
                             android.util.Log.e("OfflineRoutes", "Save failed", e);

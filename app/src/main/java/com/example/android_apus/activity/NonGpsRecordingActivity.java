@@ -31,8 +31,7 @@ public class NonGpsRecordingActivity extends AppCompatActivity {
     private long pausedTimeAccumulated = 0L;
     private long lastPauseStart = 0L;
 
-    // for upload:
-    private long startTimeUnixSeconds; // start time in seconds since epoch
+    private long startTimeUnixSeconds;
     private String activityTypeName;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -68,7 +67,6 @@ public class NonGpsRecordingActivity extends AppCompatActivity {
         if (activityTypeName == null) activityTypeName = "Activity";
         textActivityName.setText(activityTypeName);
 
-        // mark start time
         startTimeMillis = System.currentTimeMillis();
         startTimeUnixSeconds = startTimeMillis / 1000L;
 
@@ -102,10 +100,9 @@ public class NonGpsRecordingActivity extends AppCompatActivity {
             return;
         }
 
-        // build request
         NonGpsActivityUploadRequest req = new NonGpsActivityUploadRequest(
-                activityTypeName,       // e.g. "Yoga"
-                startTimeUnixSeconds,   // unix seconds
+                activityTypeName,
+                startTimeUnixSeconds,
                 durationSeconds
         );
 

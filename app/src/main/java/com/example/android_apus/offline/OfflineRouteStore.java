@@ -49,14 +49,12 @@ public final class OfflineRouteStore {
             out.add(new OfflineRoute(baseName, map, gpx.exists() ? gpx : null));
         }
 
-        // Optional: sort alphabetically
         java.util.Collections.sort(out, (a, b) -> a.name.compareToIgnoreCase(b.name));
         return out;
     }
 
 
     private static String sanitize(String s) {
-        // Keep it file-system safe
         return s.replaceAll("[^a-zA-Z0-9áéíóöőúüűÁÉÍÓÖŐÚÜŰ _-]", "_").trim();
     }
 }

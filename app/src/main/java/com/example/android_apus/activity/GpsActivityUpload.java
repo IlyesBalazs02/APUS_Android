@@ -7,5 +7,4 @@ public class GpsActivityUpload extends ActivityUploadBase {
     public Double totalDescentMeters;
     public Double avgPace;           // m/s
     public Instant finishTimeUtc;
-    // later we can also send GPX/tcx or raw trackpoints
 }

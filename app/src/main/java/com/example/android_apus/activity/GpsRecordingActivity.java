@@ -65,11 +65,7 @@ public class GpsRecordingActivity extends AppCompatActivity {
     private SessionManager sessionManager;
     private ApiService apiService;
     private GpsLocationTracker gpsTracker;
-
-    // For the blue dot source
     private GeoJsonSource userLocationSource;
-
-    // For centering behavior
     private boolean firstLocationSet = false;
     private boolean hasUserLocation = false;
     private double lastLat = 0.0;
@@ -79,6 +75,18 @@ public class GpsRecordingActivity extends AppCompatActivity {
     private long startTimeMillis;
     private long pausedTimeAccumulated = 0L;
     private long lastPauseStart = 0L;
+
+    private static final double OFF_TRAIL_DISTANCE_M = 35.0;
+    private static final double ON_TRAIL_DISTANCE_M  = 25.0;
+    private static final int OFF_TRAIL_CONSECUTIVE_FIXES = 3;
+    private static final long OFF_TRAIL_WARNING_COOLDOWN_MS = 30_000L;
+
+    private volatile double[] selectedTrackLats = null;
+    private volatile double[] selectedTrackLons = null;
+
+    private int offTrailFixes = 0;
+    private boolean isOffTrail = false;
+    private long lastOffTrailWarningAtElapsed = 0L;
 
 
     private final List<RecordedPoint> recordedPoints = new ArrayList<>();
@@ -110,7 +118,7 @@ public class GpsRecordingActivity extends AppCompatActivity {
     };
 
     private String activityTypeName;
-    private String routeFileName; // may be null
+    private String routeFileName;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -139,19 +147,18 @@ public class GpsRecordingActivity extends AppCompatActivity {
         });
 
         // Shared GPS tracker
-        // Shared GPS tracker – also record points while running
         gpsTracker = new GpsLocationTracker(
                 this,
                 (lat, lon) -> {
                     updateUserLocationOnMap(lat, lon);
 
-                    // Only record while the timer is running
                     if (isRunning) {
                         recordedPoints.add(new RecordedPoint(
                                 lat,
                                 lon,
                                 System.currentTimeMillis()
                         ));
+                        maybeWarnOffTrail(lat, lon);
                     }
                 }
         );
@@ -161,9 +168,8 @@ public class GpsRecordingActivity extends AppCompatActivity {
         if (activityTypeName == null) activityTypeName = "Activity";
         textActivityName.setText(activityTypeName);
 
-        routeFileName = getIntent().getStringExtra("routeFileName"); // may be null -> OK
+        routeFileName = getIntent().getStringExtra("routeFileName");
 
-        // Load style, then init blue dot and (optionally) route
         mapboxMap.loadStyleUri(Style.MAPBOX_STREETS, style -> {
             initUserLocationLayer(style);
 
@@ -180,9 +186,7 @@ public class GpsRecordingActivity extends AppCompatActivity {
         buttonCenter.setOnClickListener(v -> centerOnUser());
     }
 
-    // ----------------------------------------------------------
-    // GPS + blue dot (first fix auto-center, then manual center button)
-    // ----------------------------------------------------------
+    // GPS + blue dot
 
     private void initUserLocationLayer(Style style) {
         userLocationSource = new GeoJsonSource.Builder(USER_SOURCE_ID)
@@ -199,10 +203,6 @@ public class GpsRecordingActivity extends AppCompatActivity {
         layer.bindTo(style);
     }
 
-    /**
-     * Called from GpsLocationTracker on every location update.
-     * Only auto-centers the first time; later updates just move the dot.
-     */
     private void updateUserLocationOnMap(double lat, double lon) {
         if (mapboxMap == null) return;
 
@@ -235,10 +235,6 @@ public class GpsRecordingActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Called when the Center button is pressed.
-     * Centers the camera on the last known user location (if available).
-     */
     private void centerOnUser() {
         if (!hasUserLocation) {
             Toast.makeText(this,
@@ -258,10 +254,7 @@ public class GpsRecordingActivity extends AppCompatActivity {
         );
     }
 
-    // ----------------------------------------------------------
-    // Route drawing (optional)
-    // ----------------------------------------------------------
-
+    // Route drawing
     private void clearTrack(Style style) {
         if (style.styleLayerExists(TRACK_LAYER_ID)) {
             style.removeStyleLayer(TRACK_LAYER_ID);
@@ -291,8 +284,6 @@ public class GpsRecordingActivity extends AppCompatActivity {
             lineLayer.lineWidth(4.0);
             lineLayer.lineColor(Color.RED);
             lineLayer.bindTo(style);
-
-            // No auto-centering here; camera is controlled by GPS first fix + Center button.
         });
     }
 
@@ -313,6 +304,7 @@ public class GpsRecordingActivity extends AppCompatActivity {
                         if (response.isSuccessful()
                                 && response.body() != null
                                 && !response.body().isEmpty()) {
+                            setSelectedTrackForOffTrailWarning(response.body());
                             drawTrack(response.body());
                         } else {
                             Toast.makeText(GpsRecordingActivity.this,
@@ -330,9 +322,112 @@ public class GpsRecordingActivity extends AppCompatActivity {
                 });
     }
 
-    // ----------------------------------------------------------
-    // Timer / controls
-    // ----------------------------------------------------------
+
+    private void setSelectedTrackForOffTrailWarning(List<CoordinateDto> coords) {
+        if (coords == null || coords.size() < 2) {
+            selectedTrackLats = null;
+            selectedTrackLons = null;
+            resetOffTrailState();
+            return;
+        }
+
+        double[] lats = new double[coords.size()];
+        double[] lons = new double[coords.size()];
+        for (int i = 0; i < coords.size(); i++) {
+            CoordinateDto c = coords.get(i);
+            lats[i] = c.getLat();
+            lons[i] = c.getLon();
+        }
+
+        selectedTrackLats = lats;
+        selectedTrackLons = lons;
+        resetOffTrailState();
+    }
+
+    private void resetOffTrailState() {
+        offTrailFixes = 0;
+        isOffTrail = false;
+        lastOffTrailWarningAtElapsed = 0L;
+    }
+
+    private void maybeWarnOffTrail(double lat, double lon) {
+        double[] lats = selectedTrackLats;
+        double[] lons = selectedTrackLons;
+        if (lats == null || lons == null || lats.length < 2 || lons.length < 2) return;
+
+        double distanceM = distanceToPolylineMeters(lat, lon, lats, lons);
+
+        if (distanceM >= OFF_TRAIL_DISTANCE_M) {
+            offTrailFixes++;
+        } else if (distanceM <= ON_TRAIL_DISTANCE_M) {
+            offTrailFixes = 0;
+            isOffTrail = false;
+        }
+
+        if (offTrailFixes < OFF_TRAIL_CONSECUTIVE_FIXES) return;
+        isOffTrail = true;
+
+        long nowElapsed = android.os.SystemClock.elapsedRealtime();
+        if (lastOffTrailWarningAtElapsed != 0L
+                && (nowElapsed - lastOffTrailWarningAtElapsed) < OFF_TRAIL_WARNING_COOLDOWN_MS) {
+            return;
+        }
+
+        lastOffTrailWarningAtElapsed = nowElapsed;
+
+        String msg = String.format(java.util.Locale.US,
+                "Off trail: %.0f m from the selected route",
+                distanceM);
+        runOnUiThread(() -> Toast.makeText(GpsRecordingActivity.this, msg, Toast.LENGTH_LONG).show());
+    }
+
+    private static double distanceToPolylineMeters(double lat, double lon, double[] lats, double[] lons) {
+        final double refLatRad = Math.toRadians(lat);
+        final double r = 6371000.0;
+
+        final double px = Math.toRadians(lon) * Math.cos(refLatRad) * r;
+        final double py = Math.toRadians(lat) * r;
+
+        double best = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < lats.length - 1; i++) {
+            double ax = Math.toRadians(lons[i]) * Math.cos(refLatRad) * r;
+            double ay = Math.toRadians(lats[i]) * r;
+            double bx = Math.toRadians(lons[i + 1]) * Math.cos(refLatRad) * r;
+            double by = Math.toRadians(lats[i + 1]) * r;
+            double d = distancePointToSegment(px, py, ax, ay, bx, by);
+            if (d < best) best = d;
+        }
+        return best;
+    }
+
+    private static double distancePointToSegment(double px, double py,
+                                                 double ax, double ay,
+                                                 double bx, double by) {
+        double vx = bx - ax;
+        double vy = by - ay;
+        double wx = px - ax;
+        double wy = py - ay;
+
+        double len2 = vx * vx + vy * vy;
+        if (len2 <= 0.0) {
+            double dx = px - ax;
+            double dy = py - ay;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        double t = (wx * vx + wy * vy) / len2;
+        if (t < 0.0) t = 0.0;
+        else if (t > 1.0) t = 1.0;
+
+        double cx = ax + t * vx;
+        double cy = ay + t * vy;
+        double dx = px - cx;
+        double dy = py - cy;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+
+    // Timer
 
     private void onPauseResume() {
         if (isRunning) {
@@ -357,7 +452,6 @@ public class GpsRecordingActivity extends AppCompatActivity {
             gpsTracker.stop();
         }
 
-        // No or very few points -> nothing to upload
         if (recordedPoints.size() < 2) {
             Toast.makeText(this,
                     "Not enough GPS points recorded – nothing to upload.",
@@ -440,7 +534,7 @@ public class GpsRecordingActivity extends AppCompatActivity {
         );
 
         MultipartBody.Part filePart = MultipartBody.Part.createFormData(
-                "trackFile",           // MUST match [FromForm] IFormFile trackFile
+                "trackFile",
                 gpxFile.getName(),
                 fileBody
         );
@@ -491,9 +585,7 @@ public class GpsRecordingActivity extends AppCompatActivity {
         return String.format("%02d:%02d:%02d", h, m, s);
     }
 
-    // ----------------------------------------------------------
-    // Lifecycle + permission handling
-    // ----------------------------------------------------------
+    // Lifecycle
 
     @Override
     protected void onStart() {
@@ -502,7 +594,7 @@ public class GpsRecordingActivity extends AppCompatActivity {
             mapView.onStart();
         }
         if (gpsTracker != null) {
-            gpsTracker.start(); // will request permission or start updates
+            gpsTracker.start();
         }
     }
 
@@ -541,7 +633,7 @@ public class GpsRecordingActivity extends AppCompatActivity {
                     grantResults.length > 0
                             && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
             if (granted && gpsTracker != null) {
-                gpsTracker.start(); // start GPS after user granted permission
+                gpsTracker.start();
             } else {
                 Toast.makeText(this,
                         "Location permission denied. Cannot show current position.",

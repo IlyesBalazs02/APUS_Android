@@ -68,7 +68,6 @@ public class LoginActivity extends AppCompatActivity {
                     String token = response.body().token;
                     sessionManager.saveToken(token);
 
-                    // Go to main screen
                     Intent intent = new Intent(LoginActivity.this, StartRecordingActivity.class);
                     startActivity(intent);
                     finish();

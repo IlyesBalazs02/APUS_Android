@@ -48,7 +48,6 @@ public class ApiClient {
                     .sslSocketFactory(sslSocketFactory, (X509TrustManager) trustAllCerts[0])
                     .hostnameVerifier((hostname, session) -> true)
 
-                    // Increase timeouts for slow server-side map generation
                     .connectTimeout(30, TimeUnit.SECONDS)
                     .writeTimeout(30, TimeUnit.SECONDS)
                     .readTimeout(10, TimeUnit.MINUTES)

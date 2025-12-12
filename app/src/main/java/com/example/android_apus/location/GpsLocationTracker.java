@@ -16,12 +16,6 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.Priority;
 
-/**
- * Simple reusable GPS tracker.
- * - Handles FusedLocationProvider
- * - Notifies a listener with (lat, lon) on every update
- * - You can use it from any Activity (online + offline)
- */
 public class GpsLocationTracker {
 
     public interface Listener {
@@ -78,8 +72,8 @@ public class GpsLocationTracker {
         }
 
         LocationRequest request = LocationRequest.create();
-        request.setInterval(2000);          // 2s
-        request.setFastestInterval(1000);   // 1s
+        request.setInterval(2000);
+        request.setFastestInterval(1000);
         request.setPriority(Priority.PRIORITY_HIGH_ACCURACY);
 
         fusedClient.requestLocationUpdates(

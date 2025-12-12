@@ -54,9 +54,8 @@ import retrofit2.Response;
 public class OfflineRecording extends AppCompatActivity {
 
     public static final String EXTRA_ROUTE_NAME     = "routeName";
-    public static final String EXTRA_ACTIVITY_TYPE  = "activityType"; // e.g. "Running"
+    public static final String EXTRA_ACTIVITY_TYPE  = "activityType";
 
-    // SharedPreferences keys for pending GPS uploads
     private static final String PREFS_PENDING       = "offline_pending_uploads";
     private static final String KEY_PENDING_GPX     = "pending_gpx_path";
     private static final String KEY_PENDING_TYPE    = "pending_activity_type";
@@ -87,6 +86,19 @@ public class OfflineRecording extends AppCompatActivity {
     private long pausedAccumulated = 0L;
     private long lastPauseStart = 0L;
 
+
+    private List<LatLong> routePoints = new ArrayList<>();
+
+    private static final double OFF_TRAIL_DISTANCE_M = 35.0;
+    private static final double ON_TRAIL_DISTANCE_M  = 25.0;
+    private static final int OFF_TRAIL_CONSECUTIVE_FIXES = 3;
+    private static final long OFF_TRAIL_WARNING_COOLDOWN_MS = 30_000L;
+
+    private int offTrailFixes = 0;
+    private boolean isOffTrail = false;
+    private long lastOffTrailWarningAtElapsed = 0L;
+
+
     private final android.os.Handler handler =
             new android.os.Handler(android.os.Looper.getMainLooper());
 
@@ -105,7 +117,6 @@ public class OfflineRecording extends AppCompatActivity {
     private String routeName;
     private String activityTypeName;
 
-    // Recorded GPS samples
     private static class Sample {
         final double lat;
         final double lon;
@@ -153,7 +164,6 @@ public class OfflineRecording extends AppCompatActivity {
         mapView.getMapScaleBar().setVisible(true);
         mapView.getModel().mapViewPosition.setZoomLevel((byte) 12);
 
-        // Try to flush any previously pending offline GPS uploads
         tryUploadPendingIfAny();
 
         File rootDir = OfflineRouteStore.rootDir(this);
@@ -186,13 +196,11 @@ public class OfflineRecording extends AppCompatActivity {
             return;
         }
 
-        // GPS tracker – we want to see user on map and record samples
         gpsTracker = new GpsLocationTracker(
                 this,
                 (lat, lon) -> onLocationUpdate(lat, lon)
         );
 
-        // Timer start
         startTimeMillis = System.currentTimeMillis();
         handler.post(timerRunnable);
 
@@ -207,7 +215,6 @@ public class OfflineRecording extends AppCompatActivity {
         lastLat = lat;
         lastLon = lon;
 
-        // Record sample only while running
         if (isRunning) {
             samples.add(new Sample(lat, lon, System.currentTimeMillis()));
         }
@@ -217,26 +224,29 @@ public class OfflineRecording extends AppCompatActivity {
         if (userCircle == null) {
             Paint fill = AndroidGraphicFactory.INSTANCE.createPaint();
             fill.setStyle(Style.FILL);
-            fill.setColor(0x800000FF); // semi-transparent blue
+            fill.setColor(0x800000FF);
 
             Paint stroke = AndroidGraphicFactory.INSTANCE.createPaint();
             stroke.setStyle(Style.STROKE);
             stroke.setStrokeWidth(2);
-            stroke.setColor(0xFFFFFFFF); // white border
+            stroke.setColor(0xFFFFFFFF);
 
-            // Radius in meters (approx) – Mapsforge interprets as meters.
             userCircle = new Circle(ll, 10, fill, stroke);
             mapView.getLayerManager().getLayers().add(userCircle);
         } else {
             userCircle.setLatLong(ll);
         }
 
-        // Auto-center only on first fix
         if (!firstFixSet) {
             firstFixSet = true;
             mapView.getModel().mapViewPosition.setCenter(ll);
             mapView.getModel().mapViewPosition.setZoomLevel((byte) 15);
         }
+
+        if (isRunning) {
+            maybeWarnOffTrail(lat, lon);
+        }
+
 
         mapView.repaint();
     }
@@ -251,7 +261,7 @@ public class OfflineRecording extends AppCompatActivity {
         mapView.repaint();
     }
 
-    // ---------------------- Map drawing (route) ----------------------
+    // ---------------------- route drawing ----------------------
 
     private void loadOfflineMap(File mapFile) {
         MapFile mf = new MapFile(mapFile);
@@ -276,6 +286,10 @@ public class OfflineRecording extends AppCompatActivity {
 
     private void drawRoute(List<LatLong> pts) {
         if (pts == null || pts.size() < 2) return;
+
+        routePoints = new ArrayList<>(pts);
+        resetOffTrailState();
+
 
         Paint paint = AndroidGraphicFactory.INSTANCE.createPaint();
         paint.setStyle(Style.STROKE);
@@ -312,7 +326,93 @@ public class OfflineRecording extends AppCompatActivity {
         return out;
     }
 
-    // ---------------------- Timer controls ----------------------
+
+    private void resetOffTrailState() {
+        offTrailFixes = 0;
+        isOffTrail = false;
+        lastOffTrailWarningAtElapsed = 0L;
+    }
+
+    private void maybeWarnOffTrail(double lat, double lon) {
+        if (routePoints == null || routePoints.size() < 2) return;
+
+        double distanceM = distanceToPolylineMeters(lat, lon, routePoints);
+
+        if (distanceM >= OFF_TRAIL_DISTANCE_M) {
+            offTrailFixes++;
+        } else if (distanceM <= ON_TRAIL_DISTANCE_M) {
+            offTrailFixes = 0;
+            isOffTrail = false;
+        }
+
+        if (offTrailFixes < OFF_TRAIL_CONSECUTIVE_FIXES) return;
+        isOffTrail = true;
+
+        long nowElapsed = android.os.SystemClock.elapsedRealtime();
+        if (lastOffTrailWarningAtElapsed != 0L
+                && (nowElapsed - lastOffTrailWarningAtElapsed) < OFF_TRAIL_WARNING_COOLDOWN_MS) {
+            return;
+        }
+
+        lastOffTrailWarningAtElapsed = nowElapsed;
+
+        String msg = String.format(java.util.Locale.US,
+                "Off trail: %.0f m from the selected route",
+                distanceM);
+        runOnUiThread(() -> Toast.makeText(OfflineRecording.this, msg, Toast.LENGTH_LONG).show());
+    }
+
+    private static double distanceToPolylineMeters(double lat, double lon, List<LatLong> pts) {
+        final double refLatRad = Math.toRadians(lat);
+        final double r = 6371000.0;
+
+        final double px = Math.toRadians(lon) * Math.cos(refLatRad) * r;
+        final double py = Math.toRadians(lat) * r;
+
+        double best = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < pts.size() - 1; i++) {
+            LatLong a = pts.get(i);
+            LatLong b = pts.get(i + 1);
+
+            double ax = Math.toRadians(a.longitude) * Math.cos(refLatRad) * r;
+            double ay = Math.toRadians(a.latitude) * r;
+            double bx = Math.toRadians(b.longitude) * Math.cos(refLatRad) * r;
+            double by = Math.toRadians(b.latitude) * r;
+
+            double d = distancePointToSegment(px, py, ax, ay, bx, by);
+            if (d < best) best = d;
+        }
+        return best;
+    }
+
+    private static double distancePointToSegment(double px, double py,
+                                                 double ax, double ay,
+                                                 double bx, double by) {
+        double vx = bx - ax;
+        double vy = by - ay;
+        double wx = px - ax;
+        double wy = py - ay;
+
+        double len2 = vx * vx + vy * vy;
+        if (len2 <= 0.0) {
+            double dx = px - ax;
+            double dy = py - ay;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        double t = (wx * vx + wy * vy) / len2;
+        if (t < 0.0) t = 0.0;
+        else if (t > 1.0) t = 1.0;
+
+        double cx = ax + t * vx;
+        double cy = ay + t * vy;
+        double dx = px - cx;
+        double dy = py - cy;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+
+    // ---------------------- Timer ----------------------
 
     private void onPauseResume() {
         if (isRunning) {
@@ -338,7 +438,6 @@ public class OfflineRecording extends AppCompatActivity {
         }
 
         if (samples.isEmpty()) {
-            // No GPS data: nothing to upload as GPX.
             Toast.makeText(this,
                     "No GPS samples recorded, nothing to upload.",
                     Toast.LENGTH_LONG).show();
@@ -346,7 +445,6 @@ public class OfflineRecording extends AppCompatActivity {
             return;
         }
 
-        // Write GPX to a file under offline_routes root
         File rootDir = OfflineRouteStore.rootDir(this);
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
                 .format(new Date(startTimeMillis));
@@ -364,12 +462,10 @@ public class OfflineRecording extends AppCompatActivity {
             return;
         }
 
-        // Try to upload immediately if online + logged in
         String token = sessionManager.getToken();
         if (token != null && !token.isEmpty() && isOnline()) {
             uploadGpsNow(recordedGpx, activityTypeName, token);
         } else {
-            // Store pending info – will be retried next time in onCreate
             savePending(recordedGpx.getAbsolutePath(), activityTypeName);
             Toast.makeText(this,
                     "No internet or not logged in. Will upload next time when online.",
@@ -391,7 +487,6 @@ public class OfflineRecording extends AppCompatActivity {
     private void writeGpx(File file, List<Sample> samples) throws Exception {
         if (samples == null || samples.isEmpty()) return;
 
-        // Very simple GPX 1.1
         try (FileWriter fw = new FileWriter(file, false)) {
             fw.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
             fw.write("<gpx version=\"1.1\" creator=\"APUS Android\" ");
@@ -485,7 +580,6 @@ public class OfflineRecording extends AppCompatActivity {
                                     "Offline GPS activity uploaded.",
                                     Toast.LENGTH_LONG).show();
                         } else {
-                            // keep pending
                             Toast.makeText(OfflineRecording.this,
                                     "Upload failed: " + response.code(),
                                     Toast.LENGTH_LONG).show();
@@ -495,7 +589,6 @@ public class OfflineRecording extends AppCompatActivity {
 
                     @Override
                     public void onFailure(retrofit2.Call<Void> call, Throwable t) {
-                        // keep pending
                         Toast.makeText(OfflineRecording.this,
                                 "Upload error: " + t.getMessage(),
                                 Toast.LENGTH_LONG).show();
@@ -503,7 +596,6 @@ public class OfflineRecording extends AppCompatActivity {
                     }
                 });
     }
-
 
     private boolean isOnline() {
         ConnectivityManager cm =
@@ -519,14 +611,14 @@ public class OfflineRecording extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         if (gpsTracker != null) {
-            gpsTracker.start();   // start requesting locations
+            gpsTracker.start();
         }
     }
 
     @Override
     protected void onPause() {
         if (gpsTracker != null) {
-            gpsTracker.stop();    // stop location updates
+            gpsTracker.stop();
         }
         super.onPause();
     }
@@ -537,11 +629,9 @@ public class OfflineRecording extends AppCompatActivity {
         handler.removeCallbacks(timerRunnable);
 
         if (mapView != null) {
-            mapView.destroyAll(); // Mapsforge cleanup
+            mapView.destroyAll();
         }
     }
-
-
 
     @Override
     public void onRequestPermissionsResult(int requestCode,

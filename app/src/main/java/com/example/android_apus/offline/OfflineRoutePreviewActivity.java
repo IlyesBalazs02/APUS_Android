@@ -56,7 +56,7 @@ public class OfflineRoutePreviewActivity extends AppCompatActivity {
 
         File root = OfflineRouteStore.rootDir(this);
         File mapFile = new File(root, routeName + ".map");
-        File gpxFile = new File(root, routeName + ".gpx"); // optional
+        File gpxFile = new File(root, routeName + ".gpx");
         if (!mapFile.exists()) {
             Toast.makeText(this, "", Toast.LENGTH_SHORT).show();
             finish();
